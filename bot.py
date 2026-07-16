@@ -1,5 +1,5 @@
 """
-DMGuardBot – Branded as "ANGEL X MUSIC" (UI only, no music features)
+DM Guard Bot – Group Moderation + DM Report System
 Full moderation: DM reports, AI scam detection, ban/mute, Supabase storage.
 """
 
@@ -19,17 +19,18 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryH
 # --------------------- CONFIG ---------------------
 load_dotenv()
 
-BOT_TOKEN = "8693447126:AAHwgqNjxf7ySgTkqAK5OHVdiIrKPS9elmo"
-SUPABASE_URL = "https://kswscbxdvprasfdnqmxz.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtzd3NjYnhkdnByYXNmZG5xbXh6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzk1NDczNiwiZXhwIjoyMDk5NTMwNzM2fQ.TAgO9NP0LVwWMuwpLmsWW-wPgQ1IIFax11WL1SbT2LA"
-GROQ_API_KEY = "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"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+SUPPORT_LINK = os.getenv("SUPPORT_LINK", "https://t.me/your_support_channel")
 
 if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN missing.")
+    raise ValueError("BOT_TOKEN missing. Set it in your .env file.")
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set.")
+    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in your .env file.")
 if not GROQ_API_KEY:
     logging.warning("⚠️ GROQ_API_KEY missing – AI scam detection disabled.")
 
@@ -150,25 +151,24 @@ def is_group_admin(context: CallbackContext, group_id: int, user_id: int) -> boo
     except Exception:
         return False
 
-# ---------- HANDLERS (EXACT IMAGE TEXT) ----------
+# ---------- HANDLERS ----------
 
 def start(update: Update, context: CallbackContext):
-    """Send the start message exactly as in the image."""
+    """Send the DM Guard welcome message."""
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎵 Connect to Group", callback_data="connect_group")],
-        [InlineKeyboardButton("💬 Support", url="https://t.me/your_support_channel")]  # replace with your link
+        [InlineKeyboardButton("🛡️ Connect to Group", callback_data="connect_group")],
+        [InlineKeyboardButton("💬 Support", url=SUPPORT_LINK)]
     ])
     message = (
-        "🔥 *FEEL THE BEAT.*\n"
-        "🎶 *LIVE THE MOMENT.*\n\n"
-        "*ANGEL X MUSIC*\n"
-        "2 / 6 / 7 ACTIVE\n\n"
-        "*HEY, MUSIC LOVER!*\n\n"
-        "You requested to join a chat where I help manage voice chat music.\n"
-        "I can play songs, handle the queue, and keep your group vibe active.\n\n"
-        "Want me in your group too?\n"
+        "🛡️ *DM GUARD BOT*\n"
+        "Your group's safety shield.\n\n"
+        "*HEY THERE!*\n\n"
+        "I help protect your group from scammers, spammers, and shady DMs.\n"
+        "Forward me a suspicious DM and I'll alert your admins instantly, "
+        "with AI-powered scam detection built in.\n\n"
+        "Want me in your group?\n"
         "Tap below and connect me to your group.\n\n"
-        "Send /start to know more about me."
+        "Send /info to know more about what I do."
     )
     update.message.reply_text(message, parse_mode="Markdown", reply_markup=keyboard)
 
@@ -186,13 +186,13 @@ def connect_group_callback(update: Update, context: CallbackContext):
 
 def info(update: Update, context: CallbackContext):
     update.message.reply_text(
-        "🤖 *What I actually do (behind the scenes):*\n\n"
+        "🤖 *What I do:*\n\n"
         "• I protect your group from spam and scams using AI.\n"
         "• Admins receive reports when someone forwards a harassing DM.\n"
         "• I track known members to help identify users with privacy ON.\n"
         "• All actions (ban/mute) are controlled by admins via inline buttons.\n\n"
         "📌 *Commands:*\n"
-        "/start – Show the welcome banner\n"
+        "/start – Show the welcome message\n"
         "/setgroup <group_id> – Manually set the group ID\n"
         "/groupid – Show current group ID\n"
         "/info – This help message",
@@ -207,8 +207,8 @@ def new_chat_members(update: Update, context: CallbackContext):
             set_group_id_db(chat_id)
             context.bot.send_message(
                 chat_id,
-                "✅ *Angel X Music* is now connected!\n"
-                "I'll keep your group vibe active *and* secure.",
+                "✅ *DM Guard Bot* is now connected!\n"
+                "I'll keep this group protected from scams and spam.",
                 parse_mode="Markdown"
             )
         else:
@@ -509,7 +509,7 @@ def main():
     dp.add_handler(CallbackQueryHandler(handle_admin_action, pattern="^admrep_"))
     dp.add_handler(CallbackQueryHandler(handle_scam_alert_action, pattern="^scamalert_"))
 
-    logger.info("🎵 Angel X Music (moderation bot) is running with exact image UI!")
+    logger.info("🛡️ DM Guard Bot is running!")
     updater.start_polling()
     updater.idle()
 
