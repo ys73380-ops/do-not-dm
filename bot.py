@@ -27,7 +27,6 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 SUPPORT_LINK = "https://t.me/khushimilti"
 CHANNEL_LINK = os.getenv("CHANNEL_LINK", "https://t.me/your_channel_here")
-BOT_USERNAME = os.getenv("BOT_USERNAME", "YourBotUsername")  # bina @ ke, e.g. "DMGuardBot"
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN missing. Set it in your .env file.")
