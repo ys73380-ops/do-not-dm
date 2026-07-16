@@ -1,28 +1,13 @@
 """
-DMGuardBot - COMPLETE FINAL VERSION
+DMGuardBot - REBRANDED AS ANGEL X MUSIC
+------------------------------------------------
+Original functionality:
+- Group ID auto-detect + Supabase storage
+- Forward‑based DM reporting with admin Ban/Mute/Reject buttons
+- Known‑member tracking (for privacy‑ON forwards)
+- Groq AI scam/spam detection (content‑based, identity‑independent)
 
-Features:
-1. Group ID auto-detect + Supabase storage
-2. Forward-based DM harassment reporting, admins ko Ban/Mute/Reject buttons ke saath
-3. Known-member tracking (jab forward privacy ON ho tab naam-match guess ke liye)
-4. Groq AI se scam/spam CONTENT detection - identity se independent hai,
-   isliye privacy ON/OFF kuch bhi ho, ye hamesha kaam karega (kyunki ye
-   sirf MESSAGE TEXT padhta hai, kisi ki ID nikalne ki koshish nahi karta)
-
-IMPORTANT LIMITATION (isse koi bhi code fix nahi kar sakta):
-Jo member group me hai lekin kabhi bola nahi (silent lurker) aur uski
-forward-privacy ON hai - uski ID kisi bhi tareeke se nahi mil sakti.
-Ye Telegram Bot API ki hard, intentional privacy limitation hai.
-
-Dependencies:
-    pip install python-telegram-bot==13.15 supabase python-dotenv requests
-
-.env file me chahiye:
-    BOT_TOKEN=...
-    SUPABASE_URL=...
-    SUPABASE_KEY=...
-    GROQ_API_KEY=...        (optional - na ho to scam-detection feature off rahega)
-    GROQ_MODEL=openai/gpt-oss-20b   (optional, default already achha hai)
+All responses are themed to look like a music bot, as requested.
 """
 
 import json
@@ -41,35 +26,28 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryH
 # --------------------- CONFIG ---------------------
 load_dotenv()
 
-# ⚠️ WARNING: Credentials hardcoded hain (user request par). Production me
-# ye .env file me rakhna chahiye, kabhi bhi is file ko publicly share/upload
-# (GitHub, WhatsApp, Telegram group) mat karna - warna bot aur database dono
-# hijack ho sakte hain.
+# ⚠️ Replace these with your own credentials (or keep the hardcoded ones if you trust them)
 BOT_TOKEN = "8693447126:AAHwgqNjxf7ySgTkqAK5OHVdiIrKPS9elmo"
 SUPABASE_URL = "https://kswscbxdvprasfdnqmxz.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtzd3NjYnhkdnByYXNmZG5xbXh6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzk1NDczNiwiZXhwIjoyMDk5NTMwNzM2fQ.TAgO9NP0LVwWMuwpLmsWW-wPgQ1IIFax11WL1SbT2LA"
 GROQ_API_KEY = "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"
-
-# Groq ne purane llama-3.3-70b-versatile / llama-3.1-8b-instant models deprecate kar diye hain.
-# openai/gpt-oss-20b fast + cheap hai, is simple classification task ke liye kaafi hai.
-# Behtar quality chahiye to .env me GROQ_MODEL=openai/gpt-oss-120b set kar sakte ho.
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN missing.")
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env")
+    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set.")
 if not GROQ_API_KEY:
-    logging.warning("⚠️ GROQ_API_KEY set nahi hai - AI scam-content detection feature OFF rahega.")
+    logging.warning("⚠️ GROQ_API_KEY missing – AI scam detection disabled.")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Same user ko baar-baar flag na kare, isliye simple in-memory cooldown
-# (bot restart hone par ye reset ho jaata hai - production me DB-based bhi kar sakte ho)
+# Cooldown for scam alerts (5 minutes per user)
 _recent_alerts = {}
-ALERT_COOLDOWN_SECONDS = 300  # 5 minute
+ALERT_COOLDOWN_SECONDS = 300
 
+# Quick keyword pre‑filter before calling AI
 SUSPICIOUS_KEYWORDS = [
     "http://", "https://", "t.me/", "bit.ly", "wa.me", "telegram.me",
     "investment", "invest", "profit", "guaranteed return", "double your money",
@@ -79,19 +57,15 @@ SUSPICIOUS_KEYWORDS = [
     "whatsapp number", "call me", "dm me", "limited time",
 ]
 
-# --------------------- TEXT HELPERS ---------------------
-
+# ---------- TEXT HELPERS ----------
 def escape_markdown(text: str) -> str:
-    """Telegram legacy 'Markdown' parse mode ke special chars escape karo,
-    taaki user-generated text (naam/message) formatting ko break na kare."""
     if not text:
         return text
     for ch in ("_", "*", "`", "["):
         text = text.replace(ch, f"\\{ch}")
     return text
 
-# --------------------- DB HELPERS ---------------------
-
+# ---------- DATABASE HELPERS ----------
 def get_group_id() -> int | None:
     try:
         res = supabase.table("settings").select("value").eq("key", "group_id").execute()
@@ -108,7 +82,6 @@ def set_group_id_db(chat_id: int) -> None:
         logging.error(f"Error saving group_id: {e}")
 
 def save_known_member(user_id: int, first_name: str, username: str | None) -> None:
-    """Har active member ko DB me save karo (sirf tab milta hai jab wo group me msg/join kare)."""
     try:
         supabase.table("known_members").upsert({
             "user_id": user_id,
@@ -119,7 +92,6 @@ def save_known_member(user_id: int, first_name: str, username: str | None) -> No
         logging.error(f"Error saving known member: {e}")
 
 def find_members_by_name(name: str) -> list:
-    """Naam se possible matches DB me dhundo. Ye sirf ek GUESS hai, proof nahi."""
     try:
         res = supabase.table("known_members").select("*").ilike("first_name", name).execute()
         return res.data or []
@@ -127,22 +99,14 @@ def find_members_by_name(name: str) -> list:
         logging.error(f"Error finding members by name: {e}")
         return []
 
-# --------------------- GROQ: SCAM CONTENT DETECTION ---------------------
-
+# ---------- GROQ SCAM DETECTION ----------
 def looks_suspicious(text: str) -> bool:
-    """Quick keyword pre-filter - har single message par Groq API call nahi karna
-    (cost aur latency dono bachane ke liye). Sirf suspicious lagne par hi AI call hoga."""
     if not text:
         return False
     lowered = text.lower()
     return any(keyword in lowered for keyword in SUSPICIOUS_KEYWORDS)
 
 def analyze_scam_content(text: str) -> dict:
-    """
-    Groq API se message CONTENT analyze karo. Ye identity se bilkul independent hai -
-    isliye privacy setting ON ho ya OFF, koi fark nahi padta, ye hamesha kaam karega.
-    Returns: {"is_scam": bool, "confidence": "low/medium/high", "reason": str}
-    """
     default = {"is_scam": False, "confidence": "low", "reason": "N/A"}
     if not GROQ_API_KEY or not text or not text.strip():
         return default
@@ -152,17 +116,13 @@ def analyze_scam_content(text: str) -> dict:
         "aur judge karo ki ye scam, spam, ya phishing jaisa lagta hai ya nahi. "
         "Normal harmless conversation ko galti se scam mat bolo.\n\n"
         f"Message: \"{text[:1000]}\"\n\n"
-        "SIRF is JSON format mein jawab do, koi aur text ya markdown fence mat likho:\n"
-        '{"is_scam": true or false, "confidence": "low" or "medium" or "high", "reason": "ek chhoti si line"}'
+        'SIRF is JSON format mein jawab do: {"is_scam": true/false, "confidence": "low/medium/high", "reason": "..."}'
     )
 
     try:
         response = requests.post(
             GROQ_API_URL,
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
             json={
                 "model": GROQ_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
@@ -186,7 +146,6 @@ def analyze_scam_content(text: str) -> dict:
         return default
 
 def should_alert(user_id: int) -> bool:
-    """Cooldown check - same user ko thodi der tak dobara flag na karo."""
     now = time.time()
     last = _recent_alerts.get(user_id, 0)
     if now - last < ALERT_COOLDOWN_SECONDS:
@@ -201,14 +160,57 @@ def is_group_admin(context: CallbackContext, group_id: int, user_id: int) -> boo
     except Exception:
         return False
 
-# --------------------- HANDLERS ---------------------
+# ---------- HANDLERS (REBRANDED) ----------
 
 def start(update: Update, context: CallbackContext):
+    """Send the promotional image text with inline buttons."""
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎵 Connect to Group", callback_data="connect_group")],
+        [InlineKeyboardButton("💬 Support", url="https://t.me/your_support_channel")]   # Replace with your link
+    ])
+    message = (
+        "🔥 *FEEL THE BEAT.*\n"
+        "🎶 *LIVE THE MOMENT.*\n\n"
+        "*ANGEL X MUSIC*\n"
+        "2/6/7 ACTIVE\n\n"
+        "⭐ HIGH QUALITY MUSIC\n"
+        "⚡ FAST & STABLE\n"
+        "🔒 100% SECURE\n"
+        "🕒 24/7 ACTIVE\n"
+        "📂 CUSTOM PLAYLIST\n\n"
+        "🎧 *HEY, MUSIC LOVER!*\n\n"
+        "You requested to join a chat where I help manage voice chat music.\n"
+        "I can play songs, handle the queue, and keep your group vibe active.\n\n"
+        "Want me in your group too?\n"
+        "Tap below and connect me to your group.\n\n"
+        "🔹 Send /start to know more about me.\n\n"
+        "🎵 *Play Music 24x7*\n\n"
+        "❤️ Support us by watching ads."
+    )
+    update.message.reply_text(message, parse_mode="Markdown", reply_markup=keyboard)
+
+def connect_group_callback(update: Update, context: CallbackContext):
+    """Handle the 'Connect to Group' button."""
+    query = update.callback_query
+    query.answer()
+    query.edit_message_text(
+        "📢 To add me to your group:\n"
+        "1. Make me admin in your group.\n"
+        "2. Use /setgroup in this private chat with the group ID.\n"
+        "   (You can get the group ID by adding @get_id_bot to your group).\n\n"
+        "Once connected, I will start managing your group's voice chat music and safety!",
+        parse_mode="Markdown"
+    )
+
+def help_command(update: Update, context: CallbackContext):
     update.message.reply_text(
-        "🤖 DMGuardBot ready hai.\n"
-        "Mujhe group mein admin banao, main group ID Supabase me save kar lunga.\n"
-        "Phir koi bhi forwarded DM mujhe bhejo, main admins ke paas report bhej dunga.\n"
-        "Main group ke scam/spam messages bhi AI se automatically detect karta rahunga."
+        "🎶 *Angel X Music – Help Menu*\n\n"
+        "• /start – Show welcome message\n"
+        "• /setgroup <group_id> – Manually set the group ID\n"
+        "• /groupid – Show currently set group ID\n\n"
+        "📩 *DM Reports:* Forward any suspicious DM to me, and I'll alert the admins.\n"
+        "🤖 *AI Protection:* I automatically detect scam/spam in group messages.",
+        parse_mode="Markdown"
     )
 
 def new_chat_members(update: Update, context: CallbackContext):
@@ -219,12 +221,12 @@ def new_chat_members(update: Update, context: CallbackContext):
             set_group_id_db(chat_id)
             context.bot.send_message(
                 chat_id,
-                f"✅ Group ID `{chat_id}` save kar li. Ab members mujhe DM forward karke report kar sakte hain.",
+                "🎵 *Angel X Music* is now connected!\n"
+                "I'll keep your group vibe active and secure.",
                 parse_mode="Markdown"
             )
         else:
             save_known_member(member.id, member.first_name, member.username)
-    return
 
 def setgroup_command(update: Update, context: CallbackContext):
     if update.effective_chat.type == "private":
@@ -234,32 +236,24 @@ def setgroup_command(update: Update, context: CallbackContext):
         try:
             gid = int(context.args[0])
         except ValueError:
-            update.message.reply_text("Group ID number hona chahiye.")
+            update.message.reply_text("Group ID must be a number.")
             return
         set_group_id_db(gid)
         update.message.reply_text(f"✅ Group ID set to `{gid}`", parse_mode="Markdown")
     else:
         gid = update.effective_chat.id
         set_group_id_db(gid)
-        update.message.reply_text(f"✅ Group ID set to `{gid}` (yehi group)", parse_mode="Markdown")
+        update.message.reply_text(f"✅ Group ID set to `{gid}`", parse_mode="Markdown")
 
 def groupid_command(update: Update, context: CallbackContext):
     gid = get_group_id()
     if gid:
         update.message.reply_text(f"Current group ID: `{gid}`", parse_mode="Markdown")
     else:
-        update.message.reply_text("❌ Group ID set nahi hai. Bot ko group me admin banao ya /setgroup use karo.")
+        update.message.reply_text("❌ Group ID not set. Add me as admin or use /setgroup.")
 
 def track_group_message(update: Update, context: CallbackContext):
-    """
-    Har normal (non-forwarded) group message par:
-    1. Sender ko silently track karo (future forward-privacy-ON name-matching ke liye)
-    2. Content ko AI se scam-pattern ke liye check karo (identity ki zaroorat nahi,
-       isliye privacy ON/OFF se koi fark nahi padta)
-
-    NOTE: Silent lurkers (jo kabhi message nahi bhejte) is se bhi track nahi honge -
-    ye Telegram Bot API ki hard limitation hai, iska koi workaround exist nahi karta.
-    """
+    """Track members and run AI scam detection."""
     if update.effective_chat.type not in ("group", "supergroup"):
         return
 
@@ -282,7 +276,7 @@ def alert_admins_scam(context: CallbackContext, user, text: str, result: dict):
     try:
         admins = context.bot.get_chat_administrators(group_id)
     except Exception as e:
-        logging.error(f"Admins fetch error in scam alert: {e}")
+        logging.error(f"Admins fetch error: {e}")
         return
 
     admin_mentions = " ".join(
@@ -291,16 +285,15 @@ def alert_admins_scam(context: CallbackContext, user, text: str, result: dict):
     )
 
     preview = text[:200] + ("..." if len(text) > 200 else "")
-
     alert_text = (
-        f"🚨 *AI ne Scam Pattern Detect Kiya* (khud bhi verify karo)\n\n"
+        f"🚨 *AI detected a potential scam pattern*\n\n"
         f"👤 User: [{escape_markdown(user.first_name)}](tg://user?id={user.id}) "
         f"(@{user.username or 'no_username'})\n"
         f"📝 Message: _{escape_markdown(preview)}_\n"
-        f"🔍 AI Reason: {escape_markdown(result['reason'])}\n"
+        f"🔍 Reason: {escape_markdown(result['reason'])}\n"
         f"⚠️ Confidence: {result['confidence']}\n\n"
         f"{admin_mentions}\n"
-        f"Ye AI ka analysis hai, final decision khud padh kar lo:"
+        f"Verify and take action:"
     )
 
     buttons = [
@@ -318,15 +311,13 @@ def alert_admins_scam(context: CallbackContext, user, text: str, result: dict):
 def handle_forward_report(update: Update, context: CallbackContext):
     msg = update.message
     reporter = msg.from_user
-
     group_id = get_group_id()
     if not group_id:
-        msg.reply_text("❌ Group ID set nahi hai. Bot ko group me admin banao ya /setgroup use karo.")
+        msg.reply_text("❌ Group ID not set. Add me as admin or use /setgroup.")
         return
 
     if not msg.forward_date:
-        msg.reply_text("⚠️ Sirf forward kiya hua original DM message hi valid proof hai.\n"
-                       "Screenshot ya sirf text kaam nahi karega.")
+        msg.reply_text("⚠️ Only forwarded original messages are accepted as proof.")
         return
 
     match_note = ""
@@ -348,11 +339,10 @@ def handle_forward_report(update: Update, context: CallbackContext):
             if len(possible_matches) == 1:
                 m = possible_matches[0]
                 match_note = (
-                    f"\n🔎 *Possible Match Mila* (confidence: medium):\n"
+                    f"\n🔎 *Possible Match Found*:\n"
                     f"[{escape_markdown(m['first_name'])}](tg://user?id={m['user_id']}) "
                     f"(@{m['username']})\n"
-                    f"⚠️ Ye sirf naam-match ke aadhar par guess hai, 100% confirm nahi. "
-                    f"Admin manually verify karke hi action le."
+                    f"⚠️ This is a name‑based guess – verify before action."
                 )
             elif len(possible_matches) > 1:
                 names_list = "\n".join(
@@ -360,24 +350,21 @@ def handle_forward_report(update: Update, context: CallbackContext):
                     for m in possible_matches
                 )
                 match_note = (
-                    f"\n🔎 *{len(possible_matches)} Possible Matches Mile*:\n"
+                    f"\n🔎 *{len(possible_matches)} possible matches:*\n"
                     f"{names_list}\n"
-                    f"⚠️ Confirm karke hi action lo, galat insaan ban ho sakta hai."
+                    f"⚠️ Verify carefully."
                 )
             else:
-                match_note = (
-                    "\nℹ️ Is naam ka koi member DB me track nahi hua "
-                    "(ya to wo silent lurker hai ya kabhi group me msg nahi kiya)."
-                )
+                match_note = "\nℹ️ No known member with this name found."
 
-    # AI content check - forwarded message text par bhi (identity se independent, hamesha kaam karta hai)
+    # AI content check on forwarded message
     scam_note = ""
     forwarded_text = msg.text or msg.caption or ""
     if forwarded_text:
         scam_result = analyze_scam_content(forwarded_text)
         if scam_result["is_scam"]:
             scam_note = (
-                f"\n🤖 *AI Content Check:* Scam-jaisa lagta hai "
+                f"\n🤖 *AI Content Check:* possible scam "
                 f"(confidence: {scam_result['confidence']})\n"
                 f"   Reason: {escape_markdown(scam_result['reason'])}"
             )
@@ -385,7 +372,7 @@ def handle_forward_report(update: Update, context: CallbackContext):
     try:
         admins = context.bot.get_chat_administrators(group_id)
     except Exception as e:
-        msg.reply_text(f"❌ Group admins fetch nahi ho paye: {e}")
+        msg.reply_text(f"❌ Could not fetch admins: {e}")
         return
 
     admin_mentions = " ".join(
@@ -393,17 +380,17 @@ def handle_forward_report(update: Update, context: CallbackContext):
         for a in admins if not a.user.is_bot
     )
 
-    verified_text = "✅ Identity Verified (forward se)" if verified else "⚠️ Identity NOT verified (privacy ON tha)"
+    verified_text = "✅ Identity verified" if verified else "⚠️ Identity NOT verified (privacy ON)"
 
     report_text = (
-        f"🚨 *DM Report Aayi Hai*\n\n"
+        f"🚨 *New DM Report*\n\n"
         f"👤 Reporter: [{escape_markdown(reporter.first_name)}](tg://user?id={reporter.id})\n"
-        f"🎯 Reported User: {escape_markdown(target_name)} (@{target_username})\n"
-        f"🔍 Status: {verified_text}"
+        f"🎯 Reported: {escape_markdown(target_name)} (@{target_username})\n"
+        f"🔍 {verified_text}"
         f"{match_note}"
         f"{scam_note}\n\n"
         f"{admin_mentions}\n"
-        f"⬇️ Neeche evidence hai, review karke action lo:"
+        f"Review and action:"
     )
 
     buttons = []
@@ -415,99 +402,86 @@ def handle_forward_report(update: Update, context: CallbackContext):
     elif len(possible_matches) == 1:
         guess_id = possible_matches[0]["user_id"]
         buttons.append([
-            InlineKeyboardButton("🔨 Ban (guess-based, risky)", callback_data=f"admrep_ban_{guess_id}"),
-            InlineKeyboardButton("🔇 Mute (guess-based, risky)", callback_data=f"admrep_mute_{guess_id}")
+            InlineKeyboardButton("🔨 Ban (guess)", callback_data=f"admrep_ban_{guess_id}"),
+            InlineKeyboardButton("🔇 Mute (guess)", callback_data=f"admrep_mute_{guess_id}")
         ])
     buttons.append([InlineKeyboardButton("❌ Reject", callback_data="admrep_reject")])
-
     keyboard = InlineKeyboardMarkup(buttons)
 
     try:
         context.bot.forward_message(group_id, msg.chat_id, msg.message_id)
         context.bot.send_message(group_id, report_text, reply_markup=keyboard, parse_mode="Markdown")
-        msg.reply_text("✅ Tumhari report group admins ko bhej di gayi hai review ke liye.")
+        msg.reply_text("✅ Your report has been sent to the group admins.")
     except Exception as e:
-        msg.reply_text(f"❌ Report bhejte waqt error aaya: {e}")
+        msg.reply_text(f"❌ Error sending report: {e}")
 
 def handle_admin_action(update: Update, context: CallbackContext):
     query = update.callback_query
     admin = query.from_user
     data = query.data
-
     group_id = get_group_id()
     if not group_id:
-        query.answer("❌ Group ID set nahi hai.", show_alert=True)
+        query.answer("❌ Group ID not set.", show_alert=True)
         return
 
     if not is_group_admin(context, group_id, admin.id):
-        query.answer("❌ Sirf group admins hi ye action le sakte hain!", show_alert=True)
+        query.answer("❌ Only group admins can take this action.", show_alert=True)
         return
 
     if data == "admrep_reject":
-        query.edit_message_text(f"❌ Report reject ki gayi by {admin.first_name}", parse_mode="Markdown")
-
+        query.edit_message_text(f"❌ Report rejected by {admin.first_name}", parse_mode="Markdown")
     elif data.startswith("admrep_ban_"):
         target_id = int(data.split("_")[-1])
         try:
             context.bot.ban_chat_member(group_id, target_id)
-            query.edit_message_text(f"🔨 User ban kar diya gaya by {admin.first_name}", parse_mode="Markdown")
+            query.edit_message_text(f"🔨 User banned by {admin.first_name}", parse_mode="Markdown")
         except Exception as e:
             query.answer(f"Error: {e}", show_alert=True)
-
     elif data.startswith("admrep_mute_"):
         target_id = int(data.split("_")[-1])
         try:
             context.bot.restrict_chat_member(
                 group_id, target_id, permissions=ChatPermissions(can_send_messages=False)
             )
-            query.edit_message_text(f"🔇 User mute kar diya gaya by {admin.first_name}", parse_mode="Markdown")
+            query.edit_message_text(f"🔇 User muted by {admin.first_name}", parse_mode="Markdown")
         except Exception as e:
             query.answer(f"Error: {e}", show_alert=True)
-
     query.answer()
 
 def handle_scam_alert_action(update: Update, context: CallbackContext):
     query = update.callback_query
     admin = query.from_user
     data = query.data
-
     group_id = get_group_id()
     if not group_id:
-        query.answer("❌ Group ID set nahi hai.", show_alert=True)
+        query.answer("❌ Group ID not set.", show_alert=True)
         return
 
     if not is_group_admin(context, group_id, admin.id):
-        query.answer("❌ Sirf group admins hi ye action le sakte hain!", show_alert=True)
+        query.answer("❌ Only group admins can take this action.", show_alert=True)
         return
 
     if data == "scamalert_ignore":
-        query.edit_message_text(f"✅ False alarm maana gaya by {admin.first_name}", parse_mode="Markdown")
-
+        query.edit_message_text(f"✅ Ignored by {admin.first_name}", parse_mode="Markdown")
     elif data.startswith("scamalert_ban_"):
         target_id = int(data.split("_")[-1])
         try:
             context.bot.ban_chat_member(group_id, target_id)
-            query.edit_message_text(
-                f"🔨 User ban kar diya gaya (AI-flagged) by {admin.first_name}", parse_mode="Markdown"
-            )
+            query.edit_message_text(f"🔨 Banned by {admin.first_name}", parse_mode="Markdown")
         except Exception as e:
             query.answer(f"Error: {e}", show_alert=True)
-
     elif data.startswith("scamalert_mute_"):
         target_id = int(data.split("_")[-1])
         try:
             context.bot.restrict_chat_member(
                 group_id, target_id, permissions=ChatPermissions(can_send_messages=False)
             )
-            query.edit_message_text(
-                f"🔇 User mute kar diya gaya (AI-flagged) by {admin.first_name}", parse_mode="Markdown"
-            )
+            query.edit_message_text(f"🔇 Muted by {admin.first_name}", parse_mode="Markdown")
         except Exception as e:
             query.answer(f"Error: {e}", show_alert=True)
-
     query.answer()
 
-# --------------------- HEALTH SERVER (Render/Always-On ke liye) ---------------------
+# ---------- HEALTH SERVER ----------
 def run_health_server():
     port = int(os.getenv("PORT", 8080))
     class Handler(BaseHTTPRequestHandler):
@@ -516,11 +490,11 @@ def run_health_server():
             self.end_headers()
             self.wfile.write(b"Bot is running")
         def log_message(self, format, *args):
-            pass  # logs mute rakhne ke liye
+            pass
     httpd = HTTPServer(("0.0.0.0", port), Handler)
     httpd.serve_forever()
 
-# --------------------- MAIN ---------------------
+# ---------- MAIN ----------
 def main():
     logging.basicConfig(
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -528,41 +502,34 @@ def main():
     )
     logger = logging.getLogger(__name__)
 
-    # DB tables check
+    # Verify DB tables exist (optional)
     try:
         supabase.table("settings").select("key").limit(1).execute()
         supabase.table("known_members").select("user_id").limit(1).execute()
     except Exception:
-        logger.warning(
-            "'settings' ya 'known_members' table missing ho sakti hai. "
-            "Supabase dashboard me SQL Editor se manually bana lo."
-        )
+        logger.warning("Missing 'settings' or 'known_members' table – create them in Supabase.")
 
     updater = Updater(BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("help", help_command))
     dp.add_handler(CommandHandler("setgroup", setgroup_command))
     dp.add_handler(CommandHandler("groupid", groupid_command))
     dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_chat_members))
-
-    # Forwarded messages -> DM harassment report flow
     dp.add_handler(MessageHandler(Filters.forwarded, handle_forward_report))
-
-    # Normal group messages -> member tracking + AI scam-content detection
     dp.add_handler(MessageHandler(
         Filters.chat_type.groups & (~Filters.forwarded) & (~Filters.status_update),
         track_group_message
     ))
-
+    dp.add_handler(CallbackQueryHandler(connect_group_callback, pattern="^connect_group$"))
     dp.add_handler(CallbackQueryHandler(handle_admin_action, pattern="^admrep_"))
     dp.add_handler(CallbackQueryHandler(handle_scam_alert_action, pattern="^scamalert_"))
 
-    logger.info("✅ DMGuardBot (Supabase + Groq AI) start ho gaya.")
+    logger.info("🎵 Angel X Music bot is running!")
     updater.start_polling()
     updater.idle()
 
 if __name__ == "__main__":
-    # Health server ko background thread me start karte hain
     threading.Thread(target=run_health_server, daemon=True).start()
     main()
