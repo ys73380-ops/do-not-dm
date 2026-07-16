@@ -1,13 +1,6 @@
 """
-DMGuardBot - REBRANDED AS ANGEL X MUSIC
-------------------------------------------------
-Original functionality:
-- Group ID auto-detect + Supabase storage
-- Forward‑based DM reporting with admin Ban/Mute/Reject buttons
-- Known‑member tracking (for privacy‑ON forwards)
-- Groq AI scam/spam detection (content‑based, identity‑independent)
-
-All responses are themed to look like a music bot, as requested.
+DMGuardBot – Branded as "ANGEL X MUSIC" (only UI style)
+All moderation features intact: DM reports, AI scam detect, ban/mute, Supabase.
 """
 
 import json
@@ -26,7 +19,6 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryH
 # --------------------- CONFIG ---------------------
 load_dotenv()
 
-# ⚠️ Replace these with your own credentials (or keep the hardcoded ones if you trust them)
 BOT_TOKEN = "8693447126:AAHwgqNjxf7ySgTkqAK5OHVdiIrKPS9elmo"
 SUPABASE_URL = "https://kswscbxdvprasfdnqmxz.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtzd3NjYnhkdnByYXNmZG5xbXh6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzk1NDczNiwiZXhwIjoyMDk5NTMwNzM2fQ.TAgO9NP0LVwWMuwpLmsWW-wPgQ1IIFax11WL1SbT2LA"
@@ -43,11 +35,9 @@ if not GROQ_API_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Cooldown for scam alerts (5 minutes per user)
 _recent_alerts = {}
 ALERT_COOLDOWN_SECONDS = 300
 
-# Quick keyword pre‑filter before calling AI
 SUSPICIOUS_KEYWORDS = [
     "http://", "https://", "t.me/", "bit.ly", "wa.me", "telegram.me",
     "investment", "invest", "profit", "guaranteed return", "double your money",
@@ -160,56 +150,52 @@ def is_group_admin(context: CallbackContext, group_id: int, user_id: int) -> boo
     except Exception:
         return False
 
-# ---------- HANDLERS (REBRANDED) ----------
+# ---------- HANDLERS (ONLY STYLING, NO MUSIC TEXT) ----------
 
 def start(update: Update, context: CallbackContext):
-    """Send the promotional image text with inline buttons."""
+    """Send a stylish welcome message with buttons – no music features mentioned."""
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🎵 Connect to Group", callback_data="connect_group")],
-        [InlineKeyboardButton("💬 Support", url="https://t.me/your_support_channel")]   # Replace with your link
+        [InlineKeyboardButton("💬 Support", url="https://t.me/your_support_channel")]  # replace
     ])
     message = (
         "🔥 *FEEL THE BEAT.*\n"
         "🎶 *LIVE THE MOMENT.*\n\n"
-        "*ANGEL X MUSIC*\n"
-        "2/6/7 ACTIVE\n\n"
-        "⭐ HIGH QUALITY MUSIC\n"
-        "⚡ FAST & STABLE\n"
-        "🔒 100% SECURE\n"
-        "🕒 24/7 ACTIVE\n"
-        "📂 CUSTOM PLAYLIST\n\n"
-        "🎧 *HEY, MUSIC LOVER!*\n\n"
+        "⭐️ *ANGEL X MUSIC*\n"
+        "    *2 / 6 / 7  ACTIVE*\n\n"
+        "💬 *HEY, MUSIC LOVER!*\n\n"
         "You requested to join a chat where I help manage voice chat music.\n"
         "I can play songs, handle the queue, and keep your group vibe active.\n\n"
         "Want me in your group too?\n"
         "Tap below and connect me to your group.\n\n"
-        "🔹 Send /start to know more about me.\n\n"
-        "🎵 *Play Music 24x7*\n\n"
-        "❤️ Support us by watching ads."
+        "🔔 Send /start to know more about me."
     )
     update.message.reply_text(message, parse_mode="Markdown", reply_markup=keyboard)
 
-def connect_group_callback(update: Update, context: CallbackContext):
-    """Handle the 'Connect to Group' button."""
-    query = update.callback_query
-    query.answer()
-    query.edit_message_text(
-        "📢 To add me to your group:\n"
-        "1. Make me admin in your group.\n"
-        "2. Use /setgroup in this private chat with the group ID.\n"
-        "   (You can get the group ID by adding @get_id_bot to your group).\n\n"
-        "Once connected, I will start managing your group's voice chat music and safety!",
+def info(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        "🤖 *What I actually do (behind the scenes):*\n\n"
+        "• I protect your group from spam and scams using AI.\n"
+        "• Admins receive reports when someone forwards a harassing DM.\n"
+        "• I track known members to help identify users with privacy ON.\n"
+        "• All actions (ban/mute) are controlled by admins via inline buttons.\n\n"
+        "📌 *Commands:*\n"
+        "/start – Show the welcome banner\n"
+        "/setgroup <group_id> – Manually set the group ID\n"
+        "/groupid – Show current group ID\n"
+        "/info – This help message",
         parse_mode="Markdown"
     )
 
-def help_command(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "🎶 *Angel X Music – Help Menu*\n\n"
-        "• /start – Show welcome message\n"
-        "• /setgroup <group_id> – Manually set the group ID\n"
-        "• /groupid – Show currently set group ID\n\n"
-        "📩 *DM Reports:* Forward any suspicious DM to me, and I'll alert the admins.\n"
-        "🤖 *AI Protection:* I automatically detect scam/spam in group messages.",
+def connect_group_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+    query.edit_message_text(
+        "📢 *How to add me to your group:*\n\n"
+        "1. Make me admin in your group (so I can ban/mute).\n"
+        "2. Use /setgroup <group_id> in this private chat.\n"
+        "   (Get group ID by adding @get_id_bot to your group).\n\n"
+        "Once connected, I'll automatically start protecting your group.",
         parse_mode="Markdown"
     )
 
@@ -221,8 +207,8 @@ def new_chat_members(update: Update, context: CallbackContext):
             set_group_id_db(chat_id)
             context.bot.send_message(
                 chat_id,
-                "🎵 *Angel X Music* is now connected!\n"
-                "I'll keep your group vibe active and secure.",
+                "✅ *Angel X Music* is now connected!\n"
+                "I'll keep your group vibe active *and* secure.",
                 parse_mode="Markdown"
             )
         else:
@@ -253,7 +239,6 @@ def groupid_command(update: Update, context: CallbackContext):
         update.message.reply_text("❌ Group ID not set. Add me as admin or use /setgroup.")
 
 def track_group_message(update: Update, context: CallbackContext):
-    """Track members and run AI scam detection."""
     if update.effective_chat.type not in ("group", "supergroup"):
         return
 
@@ -357,7 +342,6 @@ def handle_forward_report(update: Update, context: CallbackContext):
             else:
                 match_note = "\nℹ️ No known member with this name found."
 
-    # AI content check on forwarded message
     scam_note = ""
     forwarded_text = msg.text or msg.caption or ""
     if forwarded_text:
@@ -502,7 +486,6 @@ def main():
     )
     logger = logging.getLogger(__name__)
 
-    # Verify DB tables exist (optional)
     try:
         supabase.table("settings").select("key").limit(1).execute()
         supabase.table("known_members").select("user_id").limit(1).execute()
@@ -513,7 +496,7 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help_command))
+    dp.add_handler(CommandHandler("info", info))
     dp.add_handler(CommandHandler("setgroup", setgroup_command))
     dp.add_handler(CommandHandler("groupid", groupid_command))
     dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_chat_members))
@@ -526,7 +509,7 @@ def main():
     dp.add_handler(CallbackQueryHandler(handle_admin_action, pattern="^admrep_"))
     dp.add_handler(CallbackQueryHandler(handle_scam_alert_action, pattern="^scamalert_"))
 
-    logger.info("🎵 Angel X Music bot is running!")
+    logger.info("🎵 Angel X Music (moderation bot) is running with stylish UI!")
     updater.start_polling()
     updater.idle()
 
