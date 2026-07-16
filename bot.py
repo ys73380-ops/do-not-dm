@@ -26,6 +26,7 @@ GROQ_API_KEY = "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"
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 SUPPORT_LINK = "https://t.me/khushimilti"
+CHANNEL_LINK = os.getenv("CHANNEL_LINK", "https://t.me/your_channel_here")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "YourBotUsername")  # bina @ ke, e.g. "DMGuardBot"
 
 if not BOT_TOKEN:
@@ -56,6 +57,11 @@ def escape_markdown(text: str) -> str:
     for ch in ("_", "*", "`", "["):
         text = text.replace(ch, f"\\{ch}")
     return text
+
+def escape_html(text: str) -> str:
+    if not text:
+        return text
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 # ---------- DATABASE HELPERS ----------
 def get_group_id() -> int | None:
@@ -155,22 +161,45 @@ def is_group_admin(context: CallbackContext, group_id: int, user_id: int) -> boo
 # ---------- HANDLERS ----------
 
 def start(update: Update, context: CallbackContext):
-    """Send the DM Guard welcome message."""
+    """Send the DM Guard welcome message, styled like the reference UI."""
+    user = update.effective_user
+    first_name = user.first_name if user else "there"
+
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🛡️ Add to Group", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
-        [InlineKeyboardButton("💬 Support", url=SUPPORT_LINK)]
+        [InlineKeyboardButton("➕ Add me to your group", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
+        [InlineKeyboardButton("❓ Help", callback_data="show_help")],
+        [InlineKeyboardButton("💬 Support", url=SUPPORT_LINK),
+         InlineKeyboardButton("📢 Channel", url=CHANNEL_LINK)]
     ])
+
     message = (
-        "🛡️ *DM GUARD BOT*\n"
-        "Your group's safety shield.\n\n"
-        "*HEY THERE!*\n\n"
-        "I help protect your group from scammers, spammers, and shady DMs.\n"
-        "Forward me a suspicious DM and I'll alert your admins instantly, "
-        "with AI-powered scam detection built in.\n\n"
-        "Want me in your group?\n"
-        "Tap below and connect me to your group.\n\n"
+        f"👋 Hello <b>{escape_html(first_name)}</b>\n\n"
+        f"Welcome to <b>DM Guard Bot</b> — your group's safety shield.\n\n"
+        f"<blockquote>🛡️ <b>Smart Scam &amp; Spam Detection</b>\n"
+        f"AI-powered scanning catches phishing links, scam messages, and shady DMs before they hurt your group.</blockquote>\n\n"
+        f"You can explore the bot using the buttons below, even before adding me to a group."
     )
-    update.message.reply_text(message, parse_mode="Markdown", reply_markup=keyboard)
+    update.message.reply_text(message, parse_mode="HTML", reply_markup=keyboard)
+
+def show_help_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    try:
+        query.answer()
+        query.edit_message_text(
+            "🤖 <b>What I do:</b>\n\n"
+            "• Protect your group from spam and scams using AI\n"
+            "• Alert admins when someone forwards a harassing DM\n"
+            "• Track known members to help identify users with privacy ON\n"
+            "• All actions (ban/mute) are controlled by admins via inline buttons\n\n"
+            "📌 <b>Commands:</b>\n"
+            "/start – Show the welcome message\n"
+            "/setgroup – Set the group ID (run inside the group)\n"
+            "/groupid – Show current group ID\n"
+            "/info – This help message",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logging.error(f"show_help_callback error: {e}")
 
 def info(update: Update, context: CallbackContext):
     update.message.reply_text(
@@ -496,6 +525,7 @@ def main():
         Filters.chat_type.groups & (~Filters.forwarded) & (~Filters.status_update),
         track_group_message
     ))
+    dp.add_handler(CallbackQueryHandler(show_help_callback, pattern="^show_help$"))
     dp.add_handler(CallbackQueryHandler(handle_admin_action, pattern="^admrep_"))
     dp.add_handler(CallbackQueryHandler(handle_scam_alert_action, pattern="^scamalert_"))
     dp.add_error_handler(error_handler)
