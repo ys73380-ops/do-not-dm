@@ -26,6 +26,7 @@ GROQ_API_KEY = "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"
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 SUPPORT_LINK = "https://t.me/khushimilti"
+BOT_USERNAME = os.getenv("BOT_USERNAME", "YourBotUsername")  # bina @ ke, e.g. "DMGuardBot"
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN missing. Set it in your .env file.")
@@ -156,7 +157,7 @@ def is_group_admin(context: CallbackContext, group_id: int, user_id: int) -> boo
 def start(update: Update, context: CallbackContext):
     """Send the DM Guard welcome message."""
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🛡️ Connect to Group", callback_data="connect_group")],
+        [InlineKeyboardButton("🛡️ Add to Group", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
         [InlineKeyboardButton("💬 Support", url=SUPPORT_LINK)]
     ])
     message = (
@@ -171,18 +172,6 @@ def start(update: Update, context: CallbackContext):
         "Send /info to know more about what I do."
     )
     update.message.reply_text(message, parse_mode="Markdown", reply_markup=keyboard)
-
-def connect_group_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
-    query.edit_message_text(
-        "📢 *How to add me to your group:*\n\n"
-        "1. Make me admin in your group (so I can ban/mute).\n"
-        "2. Use /setgroup <group_id> in this private chat.\n"
-        "   (Get group ID by adding @get_id_bot to your group).\n\n"
-        "Once connected, I'll automatically start protecting your group.",
-        parse_mode="Markdown"
-    )
 
 def info(update: Update, context: CallbackContext):
     update.message.reply_text(
@@ -478,6 +467,9 @@ def run_health_server():
     httpd = HTTPServer(("0.0.0.0", port), Handler)
     httpd.serve_forever()
 
+def error_handler(update: object, context: CallbackContext):
+    logging.error(f"Update {update} caused error: {context.error}", exc_info=context.error)
+
 # ---------- MAIN ----------
 def main():
     logging.basicConfig(
@@ -505,12 +497,12 @@ def main():
         Filters.chat_type.groups & (~Filters.forwarded) & (~Filters.status_update),
         track_group_message
     ))
-    dp.add_handler(CallbackQueryHandler(connect_group_callback, pattern="^connect_group$"))
     dp.add_handler(CallbackQueryHandler(handle_admin_action, pattern="^admrep_"))
     dp.add_handler(CallbackQueryHandler(handle_scam_alert_action, pattern="^scamalert_"))
+    dp.add_error_handler(error_handler)
 
     logger.info("🛡️ DM Guard Bot is running!")
-    updater.start_polling()
+    updater.start_polling(drop_pending_updates=True)
     updater.idle()
 
 if __name__ == "__main__":
