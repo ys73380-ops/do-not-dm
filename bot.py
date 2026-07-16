@@ -160,12 +160,14 @@ def is_group_admin(context: CallbackContext, group_id: int, user_id: int) -> boo
 # ---------- HANDLERS ----------
 
 def start(update: Update, context: CallbackContext):
-    """Send the DM Guard welcome message, styled like the reference UI."""
     user = update.effective_user
     first_name = user.first_name if user else "there"
 
+    # ✅ Add to Group button works directly using the bot's username
+    add_group_url = f"https://t.me/{context.bot.username}?startgroup=true"
+
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Add me to your group", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
+        [InlineKeyboardButton("➕ Add me to your group", url=add_group_url)],
         [InlineKeyboardButton("❓ Help", callback_data="show_help")],
         [InlineKeyboardButton("💬 Support", url=SUPPORT_LINK),
          InlineKeyboardButton("📢 Channel", url=CHANNEL_LINK)]
