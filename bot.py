@@ -25,7 +25,7 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 GROQ_API_KEY = "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"
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-SUPPORT_LINK = "https://t.me/your_support_channel"
+SUPPORT_LINK = "https://t.me/khushimilti"
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN missing. Set it in your .env file.")
