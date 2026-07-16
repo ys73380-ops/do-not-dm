@@ -19,13 +19,13 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryH
 # --------------------- CONFIG ---------------------
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+BOT_TOKEN = "8693447126:AAHwgqNjxf7ySgTkqAK5OHVdiIrKPS9elmo"
+SUPABASE_URL = "https://kswscbxdvprasfdnqmxz.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtzd3NjYnhkdnByYXNmZG5xbXh6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4Mzk1NDczNiwiZXhwIjoyMDk5NTMwNzM2fQ.TAgO9NP0LVwWMuwpLmsWW-wPgQ1IIFax11WL1SbT2LA"
+GROQ_API_KEY = "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"
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-SUPPORT_LINK = os.getenv("SUPPORT_LINK", "https://t.me/your_support_channel")
+SUPPORT_LINK = "https://t.me/your_support_channel"
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN missing. Set it in your .env file.")
