@@ -1,6 +1,6 @@
 """
-DMGuardBot – Branded as "ANGEL X MUSIC" (only UI style)
-All moderation features intact: DM reports, AI scam detect, ban/mute, Supabase.
+DMGuardBot – Branded as "ANGEL X MUSIC" (UI only, no music features)
+Full moderation: DM reports, AI scam detection, ban/mute, Supabase storage.
 """
 
 import json
@@ -150,27 +150,39 @@ def is_group_admin(context: CallbackContext, group_id: int, user_id: int) -> boo
     except Exception:
         return False
 
-# ---------- HANDLERS (ONLY STYLING, NO MUSIC TEXT) ----------
+# ---------- HANDLERS (EXACT IMAGE TEXT) ----------
 
 def start(update: Update, context: CallbackContext):
-    """Send a stylish welcome message with buttons – no music features mentioned."""
+    """Send the start message exactly as in the image."""
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🎵 Connect to Group", callback_data="connect_group")],
-        [InlineKeyboardButton("💬 Support", url="https://t.me/your_support_channel")]  # replace
+        [InlineKeyboardButton("💬 Support", url="https://t.me/your_support_channel")]  # replace with your link
     ])
     message = (
         "🔥 *FEEL THE BEAT.*\n"
         "🎶 *LIVE THE MOMENT.*\n\n"
-        "⭐️ *ANGEL X MUSIC*\n"
-        "    *2 / 6 / 7  ACTIVE*\n\n"
-        "💬 *HEY, MUSIC LOVER!*\n\n"
+        "*ANGEL X MUSIC*\n"
+        "2 / 6 / 7 ACTIVE\n\n"
+        "*HEY, MUSIC LOVER!*\n\n"
         "You requested to join a chat where I help manage voice chat music.\n"
         "I can play songs, handle the queue, and keep your group vibe active.\n\n"
         "Want me in your group too?\n"
         "Tap below and connect me to your group.\n\n"
-        "🔔 Send /start to know more about me."
+        "Send /start to know more about me."
     )
     update.message.reply_text(message, parse_mode="Markdown", reply_markup=keyboard)
+
+def connect_group_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+    query.edit_message_text(
+        "📢 *How to add me to your group:*\n\n"
+        "1. Make me admin in your group (so I can ban/mute).\n"
+        "2. Use /setgroup <group_id> in this private chat.\n"
+        "   (Get group ID by adding @get_id_bot to your group).\n\n"
+        "Once connected, I'll automatically start protecting your group.",
+        parse_mode="Markdown"
+    )
 
 def info(update: Update, context: CallbackContext):
     update.message.reply_text(
@@ -184,18 +196,6 @@ def info(update: Update, context: CallbackContext):
         "/setgroup <group_id> – Manually set the group ID\n"
         "/groupid – Show current group ID\n"
         "/info – This help message",
-        parse_mode="Markdown"
-    )
-
-def connect_group_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
-    query.edit_message_text(
-        "📢 *How to add me to your group:*\n\n"
-        "1. Make me admin in your group (so I can ban/mute).\n"
-        "2. Use /setgroup <group_id> in this private chat.\n"
-        "   (Get group ID by adding @get_id_bot to your group).\n\n"
-        "Once connected, I'll automatically start protecting your group.",
         parse_mode="Markdown"
     )
 
@@ -509,7 +509,7 @@ def main():
     dp.add_handler(CallbackQueryHandler(handle_admin_action, pattern="^admrep_"))
     dp.add_handler(CallbackQueryHandler(handle_scam_alert_action, pattern="^scamalert_"))
 
-    logger.info("🎵 Angel X Music (moderation bot) is running with stylish UI!")
+    logger.info("🎵 Angel X Music (moderation bot) is running with exact image UI!")
     updater.start_polling()
     updater.idle()
 
