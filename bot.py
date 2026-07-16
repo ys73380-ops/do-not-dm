@@ -169,7 +169,6 @@ def start(update: Update, context: CallbackContext):
         "with AI-powered scam detection built in.\n\n"
         "Want me in your group?\n"
         "Tap below and connect me to your group.\n\n"
-        "Send /info to know more about what I do."
     )
     update.message.reply_text(message, parse_mode="Markdown", reply_markup=keyboard)
 
